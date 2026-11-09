@@ -20,39 +20,28 @@ class Aerodynamics:
 
     @staticmethod
     def calculate_forces(velocity_kts, altitude_ft, weight_lbs, power_percent):
-        """Calcula sustentación, peso, empuje y arrastre"""
         ac = Cessna172S(weight_lbs, altitude_ft)
         rho = Aerodynamics.get_air_density(altitude_ft)
         
-        # Presión dinámica (q)
         v_fps = velocity_kts * 1.68781
         q = 0.5 * rho * (v_fps ** 2)
         
-        # Evitar división por cero a bajas velocidades
         if q <= 0:
             return None
             
-        # 1. Peso (Fuerza constante hacia abajo)
         weight = weight_lbs
-        
-        # 2. Sustentación (Igual al peso para vuelo nivelado, calculamos el CL requerido)
         cl_required = weight / (q * ac.WING_AREA_FT2)
         lift = q * ac.WING_AREA_FT2 * cl_required
-        
-        # 3. Arrastre (Polar de arrastre: CD = CD0 + CL^2 / (pi * e * AR))
         cd = ac.CD0 + (cl_required ** 2) / (math.pi * ac.OSWALD_E * ac.ASPECT_RATIO)
         drag = q * ac.WING_AREA_FT2 * cd
         
-        # 4. Empuje (Potencia * Eficiencia / Velocidad)
         power_hp = (power_percent / 100) * ac.MAX_POWER_BHP
         power_watts = power_hp * 745.7
         v_ms = velocity_kts * 0.514444
         thrust_n = (power_watts * ac.PROP_EFFICIENCY) / v_ms if v_ms > 0 else 0
-        thrust = thrust_n * 0.224809 # Newtons a Libras
+        thrust = thrust_n * 0.224809
         
-        # Velocidad de pérdida dinámica según el peso actual
-        # Vs = sqrt(2 * W / (rho * S * CL_max))
-        cl_max_clean = 1.5 # Estimado
+        cl_max_clean = 1.5
         stall_speed = math.sqrt((2 * weight) / (rho * ac.WING_AREA_FT2 * cl_max_clean)) / 1.68781
         
         return {
