@@ -268,7 +268,7 @@ class Dashboard:
         ))
         
         fig.update_layout(
-            title="️ Fuerzas Actuando sobre la Aeronave",
+            title="⚖️ Fuerzas Actuando sobre la Aeronave",
             yaxis_title="Fuerza (lbs)",
             height=300,
             margin=dict(l=20, r=20, t=50, b=20),
@@ -343,13 +343,13 @@ class Dashboard:
             status = "🚨 ¡PÉRDIDA! (STALL)"
             status_color = "red"
         elif lift_weight_ratio > 1.02:
-            status = " Ascendiendo"
+            status = "📈 Ascendiendo"
             status_color = "green"
         elif lift_weight_ratio < 0.98:
-            status = "📉 Descendiendo"
+            status = " Descendiendo"
             status_color = "orange"
         else:
-            status = "✈️ Vuelo Nivelado"
+            status = "️ Vuelo Nivelado"
             status_color = "blue"
         
         return status, status_color, {
