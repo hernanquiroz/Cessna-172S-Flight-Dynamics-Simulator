@@ -11,7 +11,6 @@ class Dashboard:
         R = 1.0 
         
         def value_to_angle(val):
-            # Escala de 0 a 200 KIAS mapeada a 270 grados
             return 225 - (val / 200) * 270
 
         def draw_arc(start_val, end_val, color, width=10):
@@ -23,14 +22,12 @@ class Dashboard:
             y = [R * math.sin(a) for a in angles]
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
-        # Datos exactos del POH Sección 2
-        draw_arc(0, 200, 'rgba(200,200,200,0.3)', 14)  # Fondo
-        draw_arc(40, 85, 'white', 10)                  # Arco Blanco (Flaps)
-        draw_arc(48, 129, 'green', 10)                 # Arco Verde (Normal)
-        draw_arc(129, 163, 'yellow', 10)               # Arco Amarillo (Precaución)
-        draw_arc(163, 163, 'red', 10)                  # Línea Roja (Vne)
+        draw_arc(0, 200, 'rgba(200,200,200,0.3)', 14) 
+        draw_arc(40, 85, 'white', 10)                  
+        draw_arc(48, 129, 'green', 10)                 
+        draw_arc(129, 163, 'yellow', 10)               
+        draw_arc(163, 163, 'red', 10)                  
 
-        # Aguja
         angle = value_to_angle(airspeed_kts)
         needle_len = 0.85
         nx = [0, needle_len * math.cos(math.radians(angle))]
