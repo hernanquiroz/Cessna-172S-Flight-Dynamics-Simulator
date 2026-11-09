@@ -1,20 +1,18 @@
-"""
-Tablero de instrumentos tipo cabina Cessna 172S
-Instrumentos circulares interactivos con agujas reales.
-"""
 import streamlit as st
 import plotly.graph_objects as go
 import math
+import numpy as np
 
 class Dashboard:
     
     @staticmethod
-    def create_airspeed_indicator(airspeed_kts, stall_speed_kts=53):
+    def create_airspeed_indicator(airspeed_kts):
         fig = go.Figure()
         R = 1.0 
         
         def value_to_angle(val):
-            return 225 - (val / 180) * 270
+            # Escala de 0 a 200 KIAS mapeada a 270 grados
+            return 225 - (val / 200) * 270
 
         def draw_arc(start_val, end_val, color, width=10):
             start_a = value_to_angle(start_val)
@@ -25,12 +23,14 @@ class Dashboard:
             y = [R * math.sin(a) for a in angles]
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
-        draw_arc(0, 180, 'rgba(200,200,200,0.3)', 14)
-        draw_arc(40, 85, 'white', 10)
-        draw_arc(48, 129, 'green', 10)
-        draw_arc(129, 163, 'yellow', 10)
-        draw_arc(163, 163, 'red', 10)
+        # Datos exactos del POH Sección 2
+        draw_arc(0, 200, 'rgba(200,200,200,0.3)', 14)  # Fondo
+        draw_arc(40, 85, 'white', 10)                  # Arco Blanco (Flaps)
+        draw_arc(48, 129, 'green', 10)                 # Arco Verde (Normal)
+        draw_arc(129, 163, 'yellow', 10)               # Arco Amarillo (Precaución)
+        draw_arc(163, 163, 'red', 10)                  # Línea Roja (Vne)
 
+        # Aguja
         angle = value_to_angle(airspeed_kts)
         needle_len = 0.85
         nx = [0, needle_len * math.cos(math.radians(angle))]
@@ -73,7 +73,7 @@ class Dashboard:
         fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, color='black'), showlegend=False))
 
         fig.update_layout(
-            title=f" Altímetro<br>{altitude_ft:.0f} ft",
+            title=f"⛰️ Altímetro<br>{altitude_ft:.0f} ft",
             xaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
             yaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
             height=280, margin=dict(l=10, r=10, t=50, b=10),
@@ -87,17 +87,17 @@ class Dashboard:
         roll_rad = math.radians(roll_deg)
         
         L = 2.0
-        sky_x = [-L, L, L, -L]
-        sky_y = [0, 0, L, L]
-        ground_x = [-L, L, L, -L]
-        ground_y = [-L, -L, 0, 0]
+        sky_x = np.array([-L, L, L, -L])
+        sky_y = np.array([0, 0, L, L])
+        ground_x = np.array([-L, L, L, -L])
+        ground_y = np.array([-L, -L, 0, 0])
         
         pitch_offset = pitch_deg / 30.0 
         
         def rotate_and_translate(x, y):
-            xr = x * math.cos(roll_rad) - y * math.sin(roll_rad)
-            yr = x * math.sin(roll_rad) + y * math.cos(roll_rad)
-            return xr, yr + pitch_offset
+            xr = x * np.cos(roll_rad) - y * np.sin(roll_rad)
+            yr = x * np.sin(roll_rad) + y * np.cos(roll_rad) + pitch_offset
+            return xr, yr
             
         sky_xr, sky_yr = rotate_and_translate(sky_x, sky_y)
         ground_xr, ground_yr = rotate_and_translate(ground_x, ground_y)
@@ -105,15 +105,13 @@ class Dashboard:
         fig.add_trace(go.Scatter(x=sky_xr, y=sky_yr, fill='toself', fillcolor='#4A90E2', line=dict(width=0), showlegend=False))
         fig.add_trace(go.Scatter(x=ground_xr, y=ground_yr, fill='toself', fillcolor='#8B4513', line=dict(width=0), showlegend=False))
         
-        horizon_x = [-L, L]
-        horizon_y = [0, 0]
+        horizon_x = np.array([-L, L])
+        horizon_y = np.array([0, 0])
         hx, hy = rotate_and_translate(horizon_x, horizon_y)
         fig.add_trace(go.Scatter(x=hx, y=hy, mode='lines', line=dict(color='white', width=3), showlegend=False))
         
-        theta = [math.radians(a) for a in range(0, 360, 2)]
-        cx = [math.cos(t) for t in theta]
-        cy = [math.sin(t) for t in theta]
-        fig.add_trace(go.Scatter(x=cx, y=cy, mode='lines', line=dict(color='black', width=8), showlegend=False))
+        theta = np.linspace(0, 2 * np.pi, 100)
+        fig.add_trace(go.Scatter(x=np.cos(theta), y=np.sin(theta), mode='lines', line=dict(color='black', width=8), showlegend=False))
         
         fig.add_trace(go.Scatter(x=[-0.3, 0.3], y=[0, 0], mode='lines', line=dict(color='orange', width=4), showlegend=False))
         fig.add_trace(go.Scatter(x=[0, 0], y=[-0.1, 0.1], mode='lines', line=dict(color='orange', width=4), showlegend=False))
@@ -130,7 +128,7 @@ class Dashboard:
     @staticmethod
     def create_forces_panel(forces_data):
         fig = go.Figure()
-        fuerzas = ['Sustentación\n(Lift)', 'Peso\n(Weight)', 'Empuje\n(Thrust)', 'Arrastre\n(Drag)']
+        fuerzas = ['Sustentación', 'Peso', 'Empuje', 'Arrastre']
         valores = [forces_data['lift_lbs'], forces_data['weight_lbs_force'], forces_data['thrust_lbs'], forces_data['drag_lbs']]
         colores = ['#2ca02c', '#d62728', '#1f77b4', '#ff7f0e']
         
@@ -166,38 +164,10 @@ class Dashboard:
         fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, color='black'), showlegend=False))
 
         fig.update_layout(
-            title=f"🔧 Potencia del Motor<br>{power_percent:.0f}% ({rpm} RPM)",
+            title=f"🔧 Potencia<br>{power_percent:.0f}% ({rpm} RPM)",
             xaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
             yaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
             height=280, margin=dict(l=10, r=10, t=60, b=10),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         )
         return fig
-    
-    @staticmethod
-    def create_flight_status_panel(forces_data):
-        lift_weight_ratio = forces_data['lift_to_weight']
-        thrust_drag_ratio = forces_data['thrust_to_drag']
-        stall_margin = (forces_data['velocity_kts'] - forces_data['stall_speed_kts']) / forces_data['stall_speed_kts'] * 100
-        
-        if forces_data['velocity_kts'] < forces_data['stall_speed_kts']:
-            status = "🚨 ¡PÉRDIDA! (STALL)"
-            status_color = "red"
-        elif lift_weight_ratio > 1.02:
-            status = "📈 Ascendiendo"
-            status_color = "green"
-        elif lift_weight_ratio < 0.98:
-            status = "📉 Descendiendo"
-            status_color = "orange"
-        else:
-            status = "✈️ Vuelo Nivelado"
-            status_color = "blue"
-        
-        return status, status_color, {
-            'Lift/Weight': f"{lift_weight_ratio:.2f}",
-            'Thrust/Drag': f"{thrust_drag_ratio:.2f}",
-            'Margen al Stall': f"{stall_margin:.1f}%",
-            'CL actual': f"{forces_data['cl']:.3f}",
-            'CL requerido': f"{forces_data['cl_required']:.3f}",
-            'Velocidad Stall': f"{forces_data['stall_speed_kts']:.1f} KIAS"
-        }
