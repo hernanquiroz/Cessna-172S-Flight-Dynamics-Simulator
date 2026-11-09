@@ -1,9 +1,11 @@
 """
 Tablero de instrumentos tipo cabina Cessna 172S
+Incluye: velocímetro, altímetro, VSI, horizonte artificial, indicadores de fuerzas
 """
 import streamlit as st
 import plotly.graph_objects as go
 from data.cessna_172s import Cessna172S
+import math
 
 
 class Dashboard:
@@ -11,100 +13,207 @@ class Dashboard:
     
     @staticmethod
     def create_airspeed_indicator(airspeed_kts, stall_speed_kts=53):
-        """Crea un velocímetro tipo cabina con arcos de colores"""
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number+delta",
-            value=airspeed_kts,
-            number={'suffix': " KIAS", 'font': {'size': 28}},
-            title={'text': "🛩️ Velocímetro (Airspeed)", 'font': {'size': 18}},
-            gauge={
-                'axis': {'range': [0, 180], 'tickwidth': 1},
-                'bar': {'color': "#1f77b4"},
-                'steps': [
-                    {'range': [0, 40], 'color': 'lightgray'},
-                    {'range': [40, 48], 'color': 'white'},
-                    {'range': [48, 85], 'color': '#90EE90'},
-                    {'range': [85, 129], 'color': 'green'},
-                    {'range': [129, 163], 'color': 'yellow'},
-                    {'range': [163, 180], 'color': 'red'}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 163
-                }
-            }
+        """
+        Crea un velocímetro tipo cabina con aguja tradicional
+        """
+        # Crear arco de velocidades con colores
+        fig = go.Figure()
+        
+        # Arco blanco (flaps): 40-85 KIAS
+        fig.add_trace(go.Scatter(
+            x=[40, 85],
+            y=[0, 0],
+            mode='lines',
+            line=dict(color='white', width=15),
+            name='Flaps'
+        ))
+        
+        # Arco verde (normal): 48-129 KIAS
+        fig.add_trace(go.Scatter(
+            x=[48, 129],
+            y=[0, 0],
+            mode='lines',
+            line=dict(color='green', width=15),
+            name='Normal'
+        ))
+        
+        # Arco amarillo (caución): 129-163 KIAS
+        fig.add_trace(go.Scatter(
+            x=[129, 163],
+            y=[0, 0],
+            mode='lines',
+            line=dict(color='yellow', width=15),
+            name='Caución'
+        ))
+        
+        # Línea roja (Vne): 163 KIAS
+        fig.add_trace(go.Scatter(
+            x=[163, 163],
+            y=[0, 0],
+            mode='lines',
+            line=dict(color='red', width=15),
+            name='Vne'
+        ))
+        
+        # Calcular posición de la aguja
+        angle = -90 + (airspeed_kts / 180) * 180  # De -90° a +90°
+        needle_length = 0.85
+        
+        # Crear aguja
+        needle_x = [0, needle_length * math.cos(math.radians(angle))]
+        needle_y = [0, needle_length * math.sin(math.radians(angle))]
+        
+        fig.add_trace(go.Scatter(
+            x=needle_x,
+            y=needle_y,
+            mode='lines',
+            line=dict(color='black', width=4),
+            name='Aguja',
+            showlegend=False
+        ))
+        
+        # Círculo central
+        fig.add_trace(go.Scatter(
+            x=[0],
+            y=[0],
+            mode='markers',
+            marker=dict(size=10, color='black'),
+            showlegend=False
         ))
         
         fig.update_layout(
-            height=250,
-            margin=dict(l=10, r=10, t=40, b=10),
+            title=f"🛩️ Velocímetro<br>{airspeed_kts:.0f} KIAS",
+            xaxis=dict(range=[-100, 200], showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(range=[-100, 100], showgrid=False, zeroline=False, showticklabels=False),
+            height=280,
+            margin=dict(l=10, r=10, t=50, b=10),
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis_fixedrange=True,
+            yaxis_fixedrange=True,
+            showlegend=False
         )
         
         return fig
     
     @staticmethod
     def create_altitude_indicator(altitude_ft):
-        """Indicador de altitud"""
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=altitude_ft,
-            number={'suffix': " ft", 'font': {'size': 28}},
-            title={'text': "📍 Altímetro (Altitude)", 'font': {'size': 18}},
-            gauge={
-                'axis': {'range': [0, 15000]},
-                'bar': {'color': "#2ca02c"},
-                'steps': [
-                    {'range': [0, 5000], 'color': '#E8F5E9'},
-                    {'range': [5000, 10000], 'color': '#C8E6C9'},
-                    {'range': [10000, 14000], 'color': '#A5D6A7'},
-                    {'range': [14000, 15000], 'color': '#FFCDD2'}
-                ]
-            }
+        """
+        Crea un altímetro con agujas tradicionales
+        """
+        fig = go.Figure()
+        
+        # Calcular posición de las agujas
+        # Aguja de 10,000 pies (una vuelta = 10,000 ft)
+        angle_10k = -90 + ((altitude_ft % 10000) / 10000) * 360
+        
+        # Aguja de 1,000 pies (una vuelta = 1,000 ft)
+        angle_1k = -90 + ((altitude_ft % 1000) / 1000) * 360
+        
+        # Aguja de 100 pies (una vuelta = 100 ft)
+        angle_100 = -90 + ((altitude_ft % 100) / 100) * 360
+        
+        # Crear agujas
+        for angle, length, width, color in [
+            (angle_10k, 0.5, 3, 'orange'),   # Aguja corta - 10,000 ft
+            (angle_1k, 0.75, 3, 'green'),    # Aguja mediana - 1,000 ft
+            (angle_100, 0.9, 2, 'white')     # Aguja larga - 100 ft
+        ]:
+            needle_x = [0, length * math.cos(math.radians(angle))]
+            needle_y = [0, length * math.sin(math.radians(angle))]
+            
+            fig.add_trace(go.Scatter(
+                x=needle_x,
+                y=needle_y,
+                mode='lines',
+                line=dict(color=color, width=width),
+                showlegend=False
+            ))
+        
+        # Círculo central
+        fig.add_trace(go.Scatter(
+            x=[0],
+            y=[0],
+            mode='markers',
+            marker=dict(size=8, color='black'),
+            showlegend=False
         ))
         
         fig.update_layout(
-            height=250,
-            margin=dict(l=10, r=10, t=40, b=10),
+            title=f" Altímetro<br>{altitude_ft:.0f} ft",
+            xaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
+            height=280,
+            margin=dict(l=10, r=10, t=50, b=10),
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
         )
         
         return fig
     
     @staticmethod
     def create_attitude_indicator(pitch_deg=0, roll_deg=0):
-        """Horizonte artificial"""
+        """
+        Horizonte artificial (Attitude Indicator)
+        Muestra pitch y roll de la aeronave
+        """
         fig = go.Figure()
         
+        # Cielo (azul) - rotado según roll
+        sky_angle = math.radians(roll_deg)
+        sky_x = [-1, 1, 1, -1]
+        sky_y = [0, 0, 1, 1]
+        
+        # Aplicar rotación
+        sky_x_rot = [x * math.cos(sky_angle) - y * math.sin(sky_angle) for x, y in zip(sky_x, sky_y)]
+        sky_y_rot = [x * math.sin(sky_angle) + y * math.cos(sky_angle) for x, y in zip(sky_x, sky_y)]
+        
+        # Ajustar por pitch
+        sky_y_rot = [y + (pitch_deg / 30) for y in sky_y_rot]
+        
         fig.add_trace(go.Scatter(
-            x=[-1, 1, 1, -1],
-            y=[0, 0, 1, 1],
+            x=sky_x_rot,
+            y=sky_y_rot,
             fill='toself',
             fillcolor='#4A90E2',
             line=dict(width=0),
             showlegend=False
         ))
         
+        # Tierra (marrón)
+        ground_x = [-1, 1, 1, -1]
+        ground_y = [-1, -1, 0, 0]
+        
+        ground_x_rot = [x * math.cos(sky_angle) - y * math.sin(sky_angle) for x, y in zip(ground_x, ground_y)]
+        ground_y_rot = [x * math.sin(sky_angle) + y * math.cos(sky_angle) for x, y in zip(ground_x, ground_y)]
+        ground_y_rot = [y + (pitch_deg / 30) for y in ground_y_rot]
+        
         fig.add_trace(go.Scatter(
-            x=[-1, 1, 1, -1],
-            y=[-1, -1, 0, 0],
+            x=ground_x_rot,
+            y=ground_y_rot,
             fill='toself',
             fillcolor='#8B4513',
             line=dict(width=0),
             showlegend=False
         ))
         
+        # Línea del horizonte
+        horizon_x = [-1, 1]
+        horizon_y = [0, 0]
+        horizon_x_rot = [x * math.cos(sky_angle) - y * math.sin(sky_angle) for x, y in zip(horizon_x, horizon_y)]
+        horizon_y_rot = [x * math.sin(sky_angle) + y * math.cos(sky_angle) for x, y in zip(horizon_x, horizon_y)]
+        horizon_y_rot = [y + (pitch_deg / 30) for y in horizon_y_rot]
+        
         fig.add_trace(go.Scatter(
-            x=[-1, 1],
-            y=[0, 0],
+            x=horizon_x_rot,
+            y=horizon_y_rot,
             mode='lines',
             line=dict(color='white', width=3),
             showlegend=False
         ))
         
+        # Símbolo del avión (cruz central) - fijo
         fig.add_trace(go.Scatter(
             x=[-0.3, 0.3],
             y=[0, 0],
@@ -121,6 +230,7 @@ class Dashboard:
             showlegend=False
         ))
         
+        # Círculo central
         fig.add_trace(go.Scatter(
             x=[0],
             y=[0],
@@ -130,12 +240,12 @@ class Dashboard:
         ))
         
         fig.update_layout(
-            title=f"🎯 Horizonte Artificial (Pitch: {pitch_deg:.1f}°, Roll: {roll_deg:.1f}°)",
+            title=f"🎯 Horizonte Artificial<br>Pitch: {pitch_deg:.1f}° | Roll: {roll_deg:.1f}°",
             xaxis=dict(range=[-1, 1], showgrid=False, zeroline=False, showticklabels=False),
             yaxis=dict(range=[-1, 1], showgrid=False, zeroline=False, showticklabels=False, 
                       scaleanchor="x", scaleratio=1),
             height=280,
-            margin=dict(l=10, r=10, t=50, b=10),
+            margin=dict(l=10, r=10, t=60, b=10),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)'
         )
@@ -144,7 +254,9 @@ class Dashboard:
     
     @staticmethod
     def create_forces_panel(forces_data):
-        """Panel de las 4 fuerzas"""
+        """
+        Panel de las 4 fuerzas: Sustentación, Peso, Empuje, Arrastre
+        """
         fig = go.Figure()
         
         fuerzas = ['Sustentación\n(Lift)', 'Peso\n(Weight)', 
@@ -166,7 +278,7 @@ class Dashboard:
         ))
         
         fig.update_layout(
-            title="⚖️ Fuerzas Actuando sobre la Aeronave",
+            title="️ Fuerzas Actuando sobre la Aeronave",
             yaxis_title="Fuerza (lbs)",
             height=300,
             margin=dict(l=20, r=20, t=50, b=20),
@@ -179,40 +291,69 @@ class Dashboard:
     
     @staticmethod
     def create_power_indicator(power_percent, rpm=2400):
-        """Indicador de potencia del motor"""
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=power_percent,
-            number={'suffix': "%", 'font': {'size': 28}},
-            title={'text': f"🔧 Potencia ({rpm} RPM)", 'font': {'size': 18}},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "#ff7f0e"},
-                'steps': [
-                    {'range': [0, 25], 'color': '#E8F5E9'},
-                    {'range': [25, 50], 'color': '#C8E6C9'},
-                    {'range': [50, 75], 'color': '#FFF9C4'},
-                    {'range': [75, 100], 'color': '#FFCDD2'}
-                ]
-            }
+        """
+        Indicador de potencia del motor con aguja
+        """
+        fig = go.Figure()
+        
+        # Calcular ángulo de la aguja
+        angle = -90 + (power_percent / 100) * 180
+        needle_length = 0.85
+        
+        # Crear aguja
+        needle_x = [0, needle_length * math.cos(math.radians(angle))]
+        needle_y = [0, needle_length * math.sin(math.radians(angle))]
+        
+        fig.add_trace(go.Scatter(
+            x=needle_x,
+            y=needle_y,
+            mode='lines',
+            line=dict(color='red', width=4),
+            name='Aguja',
+            showlegend=False
+        ))
+        
+        # Círculo central
+        fig.add_trace(go.Scatter(
+            x=[0],
+            y=[0],
+            mode='markers',
+            marker=dict(size=10, color='black'),
+            showlegend=False
+        ))
+        
+        # Arcos de colores
+        fig.add_trace(go.Scatter(
+            x=[0, 25, 50, 75, 100],
+            y=[0, 0, 0, 0, 0],
+            mode='lines',
+            line=dict(color='green', width=10),
+            showlegend=False
         ))
         
         fig.update_layout(
-            height=250,
-            margin=dict(l=10, r=10, t=40, b=10),
+            title=f"🔧 Potencia del Motor<br>{power_percent:.0f}% ({rpm} RPM)",
+            xaxis=dict(range=[-100, 100], showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(range=[-100, 100], showgrid=False, zeroline=False, showticklabels=False),
+            height=280,
+            margin=dict(l=10, r=10, t=60, b=10),
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
         )
         
         return fig
     
     @staticmethod
     def create_flight_status_panel(forces_data):
-        """Panel de estado de vuelo"""
+        """Panel de estado de vuelo con métricas clave"""
+        
+        # Calcular métricas
         lift_weight_ratio = forces_data['lift_to_weight']
         thrust_drag_ratio = forces_data['thrust_to_drag']
         stall_margin = (forces_data['velocity_kts'] - forces_data['stall_speed_kts']) / forces_data['stall_speed_kts'] * 100
         
+        # Determinar estado
         if forces_data['velocity_kts'] < forces_data['stall_speed_kts']:
             status = "🚨 ¡PÉRDIDA! (STALL)"
             status_color = "red"
@@ -238,8 +379,10 @@ class Dashboard:
     @classmethod
     def render_full_dashboard(cls, forces_data, pitch_deg=0, roll_deg=0):
         """Renderiza el tablero completo"""
+        
         status, status_color, metrics = cls.create_flight_status_panel(forces_data)
         
+        # Header con estado de vuelo
         st.markdown(f"""
         <div style='background-color: {status_color}; padding: 15px; border-radius: 10px; 
                     text-align: center; margin-bottom: 20px;'>
@@ -247,6 +390,7 @@ class Dashboard:
         </div>
         """, unsafe_allow_html=True)
         
+        # Primera fila: Instrumentos principales
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -265,6 +409,7 @@ class Dashboard:
                 forces_data['power_percent']
             ), use_container_width=True)
         
+        # Segunda fila: Horizonte y fuerzas
         col4, col5 = st.columns(2)
         
         with col4:
@@ -275,6 +420,7 @@ class Dashboard:
             st.plotly_chart(cls.create_forces_panel(forces_data), 
                           use_container_width=True)
         
+        # Métricas clave
         st.markdown("### 📊 Métricas de Vuelo")
         metric_cols = st.columns(6)
         
