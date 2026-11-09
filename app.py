@@ -1,13 +1,35 @@
 import streamlit as st
-import pandas as pd
 from data.cessna_172s import Cessna172S
 from physics.flight_dynamics import FlightDynamics
 from ui.dashboard import Dashboard
 
+# Configuración de página
 st.set_page_config(page_title="Cessna 172S - POH Simulator", page_icon="✈️", layout="wide")
 
+# ========== INYECCIÓN DE CSS PARA FONDO VIOLETA ==========
+st.markdown("""
+<style>
+    /* Fondo principal violeta suave moderno */
+    .stApp {
+        background-color: #F8F5FF; 
+    }
+    /* Barra lateral un tono más oscuro para contraste */
+    [data-testid="stSidebar"] {
+        background-color: #EFE5F8;
+    }
+    /* Títulos en violeta profundo */
+    h1, h2, h3, h4 {
+        color: #4B0082 !important;
+    }
+    /* Ajuste de métricas */
+    [data-testid="stMetricValue"] {
+        color: #5B21B6;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("✈️ Simulador de Dinámica de Vuelo - Cessna 172S")
-st.markdown("Modelo basado en el **Pilot's Operating Handbook (POH)** real del Cessna 172S. Modifica los controles para ver cómo interactúan las 4 fuerzas fundamentales.")
+st.markdown("Modelo basado en el **Pilot's Operating Handbook (POH)** real. Modifica los controles para interactuar con las 4 fuerzas fundamentales.")
 
 flight_dynamics = FlightDynamics()
 
@@ -17,6 +39,11 @@ velocity_kts = st.sidebar.slider("Velocidad (KIAS)", min_value=30, max_value=180
 altitude_ft = st.sidebar.slider("Altitud (ft)", min_value=0, max_value=14000, value=5000, step=100)
 weight_lbs = st.sidebar.slider("Peso (lbs)", min_value=1663, max_value=2550, value=2300, step=10)
 power_percent = st.sidebar.slider("Potencia del Motor (%)", min_value=0, max_value=100, value=65, step=1)
+
+# Créditos en la barra lateral
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Diseño:** Ing. Hernán Quiroz")
+st.sidebar.markdown("*Desarrollado en Streamlit*")
 
 # ========== CÁLCULO DE FUERZAS ==========
 forces_data = flight_dynamics.calculate_forces(
