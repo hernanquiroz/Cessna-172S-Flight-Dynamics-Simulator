@@ -1,102 +1,75 @@
-"""
-Datos reales del Cessna 172S extraídos del Pilot's Operating Handbook (POH)
-"""
+import math
 
 class Cessna172S:
-    """Especificaciones del Cessna 172S según POH"""
+    """Modelo de datos y especificaciones reales del Cessna 172S"""
     
-    # === PESOS (lbs) ===
-    MAX_RAMP_WEIGHT = 2558
-    MAX_TAKEOFF_WEIGHT = 2550
-    MAX_LANDING_WEIGHT = 2550
-    STANDARD_EMPTY_WEIGHT = 1663
-    MAX_USEFUL_LOAD = 895
-    MAX_BAGGAGE = 120
-    
-    # === MOTOR ===
-    ENGINE_MODEL = "Lycoming IO-360-L2A"
-    MAX_POWER_BHP = 180
-    MAX_POWER_RPM = 2700
-    ENGINE_TYPE = "Normally aspirated, fuel injected, 4-cylinder"
-    
-    # === HÉLICE ===
-    PROPELLER_DIAMETER_IN = 76
-    PROPELLER_TYPE = "Fixed pitch"
-    
-    # === ALA ===
-    WING_AREA_SQFT = 174
-    WING_SPAN_FT = 36.08
-    WING_LOADING = 14.7
-    POWER_LOADING = 14.2
-    
-    # === COMBUSTIBLE ===
-    FUEL_CAPACITY_TOTAL_GAL = 56
-    FUEL_USABLE_GAL = 53
-    FUEL_UNUSABLE_GAL = 3
-    
-    # === VELOCIDADES (KIAS) ===
-    V_NE = 163
-    V_NO = 129
-    V_A_2550 = 105
-    V_FE_10 = 110
-    V_FE_30 = 85
-    V_S0 = 48
-    V_S1 = 53
-    
-    # === PERFORMANCE ===
-    MAX_SPEED_KTAS_SL = 126
-    CRUISE_75_8500FT_KTAS = 124
-    RATE_OF_CLIMB_SL_FPM = 730
-    SERVICE_CEILING_FT = 14000
-    
-    # === DISTANCIAS (ft) ===
-    TAKEOFF_GROUND_ROLL = 960
-    TAKEOFF_OVER_50FT = 1630
-    LANDING_GROUND_ROLL = 575
-    LANDING_OVER_50FT = 1335
-    
-    # === COEFICIENTES AERODINÁMICOS ===
-    CL_MAX_FLAPS_UP = 1.5
-    CL_MAX_FLAPS_DOWN = 1.8
-    CD0 = 0.027
-    OSWALD_EFFICIENCY = 0.8
-    
-    # === CONVERSIONES ===
-    LBS_TO_KG = 0.453592
-    FT_TO_M = 0.3048
-    KTS_TO_MS = 0.514444
-    HP_TO_WATTS = 745.7
-    
-    @classmethod
-    def get_specs_dict(cls):
-        """Retorna todas las especificaciones en un diccionario"""
-        return {
-            'Pesos': {
-                'Peso máximo rampa': f"{cls.MAX_RAMP_WEIGHT} lbs",
-                'Peso máximo despegue': f"{cls.MAX_TAKEOFF_WEIGHT} lbs",
-                'Peso vacío': f"{cls.STANDARD_EMPTY_WEIGHT} lbs",
-                'Carga útil máxima': f"{cls.MAX_USEFUL_LOAD} lbs",
-            },
-            'Motor': {
-                'Modelo': cls.ENGINE_MODEL,
-                'Potencia máxima': f"{cls.MAX_POWER_BHP} BHP @ {cls.MAX_POWER_RPM} RPM",
-                'Tipo': cls.ENGINE_TYPE,
-            },
-            'Ala': {
-                'Superficie': f"{cls.WING_AREA_SQFT} sq ft",
-                'Envergadura': f"{cls.WING_SPAN_FT} ft",
-                'Carga alar': f"{cls.WING_LOADING} lbs/sq ft",
-            },
-            'Velocidades': {
-                'Vne (Nunca exceder)': f"{cls.V_NE} KIAS",
-                'Vno (Crucero máximo)': f"{cls.V_NO} KIAS",
-                'Va (Maniobra)': f"{cls.V_A_2550} KIAS",
-                'Vs0 (Pérdida flaps down)': f"{cls.V_S0} KIAS",
-                'Vs1 (Pérdida flaps up)': f"{cls.V_S1} KIAS",
-            },
-            'Performance': {
-                'Velocidad máxima': f"{cls.MAX_SPEED_KTAS_SL} KTAS",
-                'Tasa de ascenso': f"{cls.RATE_OF_CLIMB_SL_FPM} fpm",
-                'Techo de servicio': f"{cls.SERVICE_CEILING_FT} ft",
-            }
-        }
+    # Especificaciones geométricas y de peso (POH / AOPA)[reference:3]
+    WING_AREA_FT2 = 174.0
+    WING_SPAN_FT = 36.1
+    ASPECT_RATIO = 7.32
+    EMPTY_WEIGHT_LBS = 1680.0
+    MAX_GROSS_WEIGHT_LBS = 2550.0
+    MAX_POWER_HP = 180.0
+    PROP_EFFICIENCY = 0.80  # Eficiencia típica de hélice de paso fijo
+
+    # Coeficientes aerodinámicos (basados en test de vuelo)[reference:4][reference:5]
+    CD0 = 0.027          # Coeficiente de arrastre parásito
+    OSWALD_E = 0.88      # Factor de eficiencia de Oswald
+    CL_MAX = 1.6         # CL máximo sin flaps
+    CL_MAX_FLAPS = 2.1   # CL máximo con flaps (aprox)
+
+    # Velocidades límite (KIAS)[reference:6]
+    V_STALL_CLEAN_KT = 48
+    V_STALL_FLAPS_KT = 40
+    V_NE_KT = 163
+    V_CRUISE_KT = 124
+
+    def __init__(self, weight_lbs=None, altitude_ft=0):
+        self.weight_lbs = weight_lbs or self.MAX_GROSS_WEIGHT_LBS
+        self.altitude_ft = altitude_ft
+
+    def get_air_density(self):
+        """Modelo de atmósfera estándar ISA simplificado"""
+        # Densidad al nivel del mar en slugs/ft³
+        rho0 = 0.0023769
+        # Temperatura y presión estándar
+        T0 = 288.15  # K
+        L = 0.0065   # K/m
+        g = 9.80665  # m/s²
+        R = 287.05   # J/(kg·K)
+        
+        h_m = self.altitude_ft * 0.3048
+        T = T0 - L * h_m
+        p = 101325 * (T / T0) ** (g / (L * R))
+        rho_kg_m3 = p / (R * T)
+        # Convertir a slugs/ft³
+        return rho_kg_m3 * 0.00194032
+
+    def compute_lift(self, velocity_kts, cl=None):
+        """Calcula la fuerza de sustentación en lbs"""
+        if cl is None:
+            cl = self.CL_MAX  # Simplificación para cálculo estático
+        v_fps = velocity_kts * 1.68781
+        rho = self.get_air_density()
+        q = 0.5 * rho * (v_fps ** 2)
+        return q * self.WING_AREA_FT2 * cl
+
+    def compute_drag(self, velocity_kts, cl):
+        """Calcula el arrastre total en lbs usando la polar de arrastre"""
+        v_fps = velocity_kts * 1.68781
+        rho = self.get_air_density()
+        q = 0.5 * rho * (v_fps ** 2)
+        # CD = CD0 + CL^2 / (pi * e * AR)
+        cd = self.CD0 + (cl ** 2) / (math.pi * self.OSWALD_E * self.ASPECT_RATIO)
+        return q * self.WING_AREA_FT2 * cd
+
+    def compute_thrust(self, power_percent):
+        """Calcula el empuje disponible en lbs"""
+        # Potencia en Watts
+        power_w = (self.MAX_POWER_HP * 745.7) * (power_percent / 100.0)
+        # Asumimos una velocidad de referencia para el empuje estático
+        # T = (P * eta) / V (V en m/s)
+        # Para simplificar el panel, usamos una velocidad de referencia de crucero
+        v_ref_ms = self.V_CRUISE_KT * 0.514444
+        thrust_n = (power_w * self.PROP_EFFICIENCY) / v_ref_ms
+        return thrust_n * 0.224809  # Convertir N a lbs
