@@ -1,6 +1,6 @@
 """
 Tablero de instrumentos tipo cabina Cessna 172S
-Incluye: velocímetro, altímetro, VSI, horizonte artificial, indicadores de fuerzas
+Incluye: velocímetro, altímetro, horizonte artificial, indicadores de fuerzas
 """
 import streamlit as st
 import plotly.graph_objects as go
@@ -16,6 +16,7 @@ class Dashboard:
         """Crea un velocímetro tipo cabina con aguja tradicional"""
         fig = go.Figure()
         
+        # Crear arco de velocidades con colores
         # Arco blanco (flaps): 40-85 KIAS
         fig.add_trace(go.Scatter(
             x=[40, 85],
@@ -52,8 +53,8 @@ class Dashboard:
             name='Vne'
         ))
         
-        # Calcular posición de la aguja
-        angle = -90 + (airspeed_kts / 180) * 180  # De -90° a +90°
+        # Calcular posición de la aguja (de -90° a +90°)
+        angle = -90 + (airspeed_kts / 180) * 180
         needle_length = 0.85
         
         # Crear aguja
@@ -346,10 +347,10 @@ class Dashboard:
             status = "📈 Ascendiendo"
             status_color = "green"
         elif lift_weight_ratio < 0.98:
-            status = " Descendiendo"
+            status = "📉 Descendiendo"
             status_color = "orange"
         else:
-            status = "️ Vuelo Nivelado"
+            status = "✈️ Vuelo Nivelado"
             status_color = "blue"
         
         return status, status_color, {
