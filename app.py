@@ -1,121 +1,219 @@
 import streamlit as st
-from data.cessna_172s import Cessna172S
-from physics.flight_dynamics import FlightDynamics
-from ui.dashboard import Dashboard
+import plotly.graph_objects as go
+import math
+import numpy as np
 
-# Configuración de página
-st.set_page_config(page_title="Cessna 172S - POH Simulator", page_icon="✈️", layout="wide")
+class Dashboard:
+    
+    @staticmethod
+    def create_airspeed_indicator(airspeed_kts):
+        fig = go.Figure()
+        R = 1.0 
+        
+        def value_to_angle(val):
+            # Escala de 0 a 200 KIAS mapeada a 270 grados (de 225° a -45°)
+            return 225 - (val / 200) * 270
 
-# ========== INYECCIÓN DE CSS PARA FONDO VIOLETA ==========
-st.markdown("""
-<style>
-    /* Fondo principal violeta suave moderno */
-    .stApp {
-        background-color: #F8F5FF; 
-    }
-    /* Barra lateral un tono más oscuro para contraste */
-    [data-testid="stSidebar"] {
-        background-color: #EFE5F8;
-    }
-    /* Títulos en violeta profundo */
-    h1, h2, h3, h4 {
-        color: #4B0082 !important;
-    }
-    /* Ajuste de métricas */
-    [data-testid="stMetricValue"] {
-        color: #5B21B6;
-    }
-</style>
-""", unsafe_allow_html=True)
+        def draw_arc(start_val, end_val, color, width=10):
+            start_a = value_to_angle(start_val)
+            end_a = value_to_angle(end_val)
+            steps = 50
+            angles = [math.radians(start_a + (end_a - start_a) * i / steps) for i in range(steps + 1)]
+            x = [R * math.cos(a) for a in angles]
+            y = [R * math.sin(a) for a in angles]
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
-st.title("✈️ Simulador de Dinámica de Vuelo - Cessna 172S")
-st.markdown("Modelo basado en el **Pilot's Operating Handbook (POH)** real. Modifica los controles para interactuar con las 4 fuerzas fundamentales.")
+        # Arcos de colores según POH
+        draw_arc(0, 200, 'rgba(200,200,200,0.3)', 14) 
+        draw_arc(40, 85, 'white', 10)                  
+        draw_arc(48, 129, 'green', 10)                 
+        draw_arc(129, 163, 'yellow', 10)               
+        draw_arc(163, 163, 'red', 10)                  
 
-flight_dynamics = FlightDynamics()
+        # ========== NUMERACIÓN DEL VELOCÍMETRO ==========
+        ticks = [0, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+        for t in ticks:
+            ang = value_to_angle(t)
+            rad = math.radians(ang)
+            
+            # Línea de la marca (tick)
+            x0, y0 = 0.88 * math.cos(rad), 0.88 * math.sin(rad)
+            x1, y1 = 1.0 * math.cos(rad), 1.0 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines', line=dict(color='black', width=2), showlegend=False))
+            
+            # Texto del número
+            xt, yt = 1.15 * math.cos(rad), 1.15 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[xt], y=[yt], mode='text', text=[str(t)], textfont=dict(size=12, color='black'), showlegend=False))
 
-# ========== SIDEBAR: CONTROLES ==========
-st.sidebar.header("🎛️ Controles de Vuelo")
-velocity_kts = st.sidebar.slider("Velocidad (KIAS)", min_value=30, max_value=180, value=90, step=1)
-altitude_ft = st.sidebar.slider("Altitud (ft)", min_value=0, max_value=14000, value=5000, step=100)
-weight_lbs = st.sidebar.slider("Peso (lbs)", min_value=1663, max_value=2550, value=2300, step=10)
-power_percent = st.sidebar.slider("Potencia del Motor (%)", min_value=0, max_value=100, value=65, step=1)
+        # Aguja
+        angle = value_to_angle(airspeed_kts)
+        needle_len = 0.85
+        nx = [0, needle_len * math.cos(math.radians(angle))]
+        ny = [0, needle_len * math.sin(math.radians(angle))]
+        fig.add_trace(go.Scatter(x=nx, y=ny, mode='lines', line=dict(color='red', width=4), showlegend=False))
+        fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=12, color='black'), showlegend=False))
 
-# Créditos en la barra lateral
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Diseño:** Ing. Hernán Quiroz")
-st.sidebar.markdown("*Desarrollado en Streamlit*")
+        fig.update_layout(
+            title=f"🛩️ Velocímetro<br>{airspeed_kts:.0f} KIAS",
+            xaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False),
+            height=280, margin=dict(l=10, r=10, t=50, b=10),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        )
+        return fig
+    
+    @staticmethod
+    def create_altitude_indicator(altitude_ft):
+        fig = go.Figure()
+        R = 1.0
+        theta = [math.radians(a) for a in range(0, 360, 2)]
+        cx = [R * math.cos(t) for t in theta]
+        cy = [R * math.sin(t) for t in theta]
+        fig.add_trace(go.Scatter(x=cx, y=cy, mode='lines', line=dict(color='lightgray', width=3), showlegend=False))
 
-# ========== CÁLCULO DE FUERZAS ==========
-forces_data = flight_dynamics.calculate_forces(
-    velocity_kts=velocity_kts,
-    altitude_ft=altitude_ft,
-    power_percent=power_percent,
-    weight_lbs=weight_lbs
-)
+        # ========== NUMERACIÓN DEL ALTÍMETRO (0 A 9) ==========
+        for i in range(10):
+            ang = i * 36 # 360 grados / 10 números = 36 grados por número
+            rad = math.radians(90 - ang) # 0 está en la parte superior (90 grados en matemáticas)
+            
+            # Tick
+            x0, y0 = 0.85 * math.cos(rad), 0.85 * math.sin(rad)
+            x1, y1 = 1.0 * math.cos(rad), 1.0 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines', line=dict(color='black', width=2), showlegend=False))
+            
+            # Número (representa miles de pies)
+            xt, yt = 1.15 * math.cos(rad), 1.15 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[xt], y=[yt], mode='text', text=[str(i)], textfont=dict(size=14, color='black'), showlegend=False))
 
-pitch_deg, roll_deg = flight_dynamics.calculate_attitude(forces_data['lift_to_weight'], velocity_kts)
+        # Cálculo de las 3 agujas
+        angle_100 = (altitude_ft % 1000) / 1000 * 360
+        angle_1k = (altitude_ft % 10000) / 10000 * 360
+        angle_10k = (altitude_ft % 100000) / 100000 * 360
 
-# ========== PANEL DE ESTADO ==========
-lift_weight_ratio = forces_data['lift_to_weight']
-if forces_data['velocity_kts'] < forces_data['stall_speed_kts']:
-    status = "🚨 ¡PÉRDIDA! (STALL)"
-    status_color = "red"
-elif lift_weight_ratio > 1.02:
-    status = "📈 Ascendiendo"
-    status_color = "green"
-elif lift_weight_ratio < 0.98:
-    status = "📉 Descendiendo"
-    status_color = "orange"
-else:
-    status = "✈️ Vuelo Nivelado"
-    status_color = "blue"
+        def draw_needle(angle, length, width, color):
+            rad = math.radians(90 - angle)
+            nx = [0, length * math.cos(rad)]
+            ny = [0, length * math.sin(rad)]
+            fig.add_trace(go.Scatter(x=nx, y=ny, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
-st.markdown(f"""
-<div style='background-color: {status_color}; padding: 15px; border-radius: 10px; 
-            text-align: center; margin-bottom: 20px;'>
-    <h2 style='color: white; margin: 0;'>{status}</h2>
-</div>
-""", unsafe_allow_html=True)
+        draw_needle(angle_10k, 0.5, 4, 'orange')   # 10,000 pies
+        draw_needle(angle_1k, 0.75, 4, 'green')    # 1,000 pies
+        draw_needle(angle_100, 0.9, 3, 'black')    # 100 pies
 
-# ========== TABLERO DE INSTRUMENTOS ==========
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.plotly_chart(Dashboard.create_airspeed_indicator(velocity_kts), use_container_width=True)
-with col2:
-    st.plotly_chart(Dashboard.create_altitude_indicator(altitude_ft), use_container_width=True)
-with col3:
-    st.plotly_chart(Dashboard.create_power_indicator(power_percent), use_container_width=True)
+        fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, color='black'), showlegend=False))
 
-col4, col5 = st.columns(2)
-with col4:
-    st.plotly_chart(Dashboard.create_attitude_indicator(pitch_deg, roll_deg), use_container_width=True)
-with col5:
-    st.plotly_chart(Dashboard.create_forces_panel(forces_data), use_container_width=True)
+        fig.update_layout(
+            title=f"⛰️ Altímetro<br>{altitude_ft:.0f} ft",
+            xaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False),
+            height=280, margin=dict(l=10, r=10, t=50, b=10),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        )
+        return fig
+    
+    @staticmethod
+    def create_attitude_indicator(pitch_deg=0, roll_deg=0):
+        fig = go.Figure()
+        roll_rad = math.radians(roll_deg)
+        
+        L = 2.0
+        sky_x = np.array([-L, L, L, -L])
+        sky_y = np.array([0, 0, L, L])
+        ground_x = np.array([-L, L, L, -L])
+        ground_y = np.array([-L, -L, 0, 0])
+        
+        pitch_offset = pitch_deg / 30.0 
+        
+        def rotate_and_translate(x, y):
+            xr = x * np.cos(roll_rad) - y * np.sin(roll_rad)
+            yr = x * np.sin(roll_rad) + y * np.cos(roll_rad) + pitch_offset
+            return xr, yr
+            
+        sky_xr, sky_yr = rotate_and_translate(sky_x, sky_y)
+        ground_xr, ground_yr = rotate_and_translate(ground_x, ground_y)
+        
+        fig.add_trace(go.Scatter(x=sky_xr, y=sky_yr, fill='toself', fillcolor='#4A90E2', line=dict(width=0), showlegend=False))
+        fig.add_trace(go.Scatter(x=ground_xr, y=ground_yr, fill='toself', fillcolor='#8B4513', line=dict(width=0), showlegend=False))
+        
+        horizon_x = np.array([-L, L])
+        horizon_y = np.array([0, 0])
+        hx, hy = rotate_and_translate(horizon_x, horizon_y)
+        fig.add_trace(go.Scatter(x=hx, y=hy, mode='lines', line=dict(color='white', width=3), showlegend=False))
+        
+        theta = np.linspace(0, 2 * np.pi, 100)
+        fig.add_trace(go.Scatter(x=np.cos(theta), y=np.sin(theta), mode='lines', line=dict(color='black', width=8), showlegend=False))
+        
+        fig.add_trace(go.Scatter(x=[-0.3, 0.3], y=[0, 0], mode='lines', line=dict(color='orange', width=4), showlegend=False))
+        fig.add_trace(go.Scatter(x=[0, 0], y=[-0.1, 0.1], mode='lines', line=dict(color='orange', width=4), showlegend=False))
+        
+        fig.update_layout(
+            title=f"🎯 Horizonte Artificial<br>Pitch: {pitch_deg:.1f}° | Roll: {roll_deg:.1f}°",
+            xaxis=dict(range=[-1.1, 1.1], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.1, 1.1], showgrid=False, zeroline=False, showticklabels=False),
+            height=280, margin=dict(l=10, r=10, t=60, b=10),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        return fig
+    
+    @staticmethod
+    def create_forces_panel(forces_data):
+        fig = go.Figure()
+        fuerzas = ['Sustentación', 'Peso', 'Empuje', 'Arrastre']
+        valores = [forces_data['lift_lbs'], forces_data['weight_lbs_force'], forces_data['thrust_lbs'], forces_data['drag_lbs']]
+        colores = ['#2ca02c', '#d62728', '#1f77b4', '#ff7f0e']
+        
+        fig.add_trace(go.Bar(x=fuerzas, y=valores, marker_color=colores, text=[f'{v:.0f} lbs' for v in valores], textposition='auto'))
+        
+        fig.update_layout(
+            title="⚖️ Fuerzas Actuando sobre la Aeronave",
+            yaxis_title="Fuerza (lbs)", height=300, margin=dict(l=20, r=20, t=50, b=20),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(gridcolor='lightgray')
+        )
+        return fig
+    
+    @staticmethod
+    def create_power_indicator(power_percent, rpm=2400):
+        fig = go.Figure()
+        R = 1.0
+        def value_to_angle(val):
+            return 225 - (val / 100) * 270
+        
+        start_a = value_to_angle(0)
+        end_a = value_to_angle(100)
+        steps = 50
+        angles = [math.radians(start_a + (end_a - start_a) * i / steps) for i in range(steps + 1)]
+        x = [R * math.cos(a) for a in angles]
+        y = [R * math.sin(a) for a in angles]
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color='green', width=12), showlegend=False))
 
-# ========== MÉTRICAS ==========
-st.markdown("### 📊 Métricas de Vuelo (Basadas en POH)")
-metric_cols = st.columns(6)
-metrics = {
-    'Lift/Weight': f"{forces_data['lift_to_weight']:.2f}",
-    'Thrust/Drag': f"{forces_data['thrust_to_drag']:.2f}",
-    'CL Requerido': f"{forces_data['cl']:.3f}",
-    'Velocidad Stall': f"{forces_data['stall_speed_kts']:.1f} KIAS",
-    'Sustentación': f"{forces_data['lift_lbs']:.0f} lbs",
-    'Arrastre': f"{forces_data['drag_lbs']:.0f} lbs"
-}
+        # ========== NUMERACIÓN DE POTENCIA ==========
+        ticks = [0, 25, 50, 75, 100]
+        for t in ticks:
+            ang = value_to_angle(t)
+            rad = math.radians(ang)
+            
+            # Tick
+            x0, y0 = 0.85 * math.cos(rad), 0.85 * math.sin(rad)
+            x1, y1 = 1.0 * math.cos(rad), 1.0 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines', line=dict(color='black', width=2), showlegend=False))
+            
+            # Número
+            xt, yt = 1.15 * math.cos(rad), 1.15 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[xt], y=[yt], mode='text', text=[f'{t}%'], textfont=dict(size=12, color='black'), showlegend=False))
 
-for i, (key, value) in enumerate(metrics.items()):
-    with metric_cols[i]:
-        st.metric(label=key, value=value)
+        # Aguja
+        angle = value_to_angle(power_percent)
+        needle_len = 0.85
+        nx = [0, needle_len * math.cos(math.radians(angle))]
+        ny = [0, needle_len * math.sin(math.radians(angle))]
+        fig.add_trace(go.Scatter(x=nx, y=ny, mode='lines', line=dict(color='red', width=4), showlegend=False))
+        fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, color='black'), showlegend=False))
 
-# ========== DATOS TÉCNICOS DEL POH ==========
-with st.expander("📖 Ver Especificaciones Técnicas del POH"):
-    st.markdown(f"""
-    *   **Motor:** {Cessna172S.ENGINE_MODEL} ({Cessna172S.MAX_POWER_BHP} BHP)
-    *   **Peso Máximo de Despegue:** {Cessna172S.MAX_TAKEOFF_WEIGHT_LBS} lbs
-    *   **Velocidad de Pérdida (Vs0):** {Cessna172S.V_STALL_FLAPS} KIAS
-    *   **Velocidad de Pérdida Limpia (Vs1):** {Cessna172S.V_STALL_CLEAN} KIAS
-    *   **Velocidad Máxima de Crucero (Vno):** {Cessna172S.V_NO} KIAS
-    *   **Velocidad Nunca Exceder (Vne):** {Cessna172S.V_NE} KIAS
-    *   **Techo de Servicio:** {Cessna172S.SERVICE_CEILING_FT} ft
-    """)
+        fig.update_layout(
+            title=f"🔧 Potencia<br>{power_percent:.0f}% ({rpm} RPM)",
+            xaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False),
+            height=280, margin=dict(l=10, r=10, t=60, b=10),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        )
+        return fig
