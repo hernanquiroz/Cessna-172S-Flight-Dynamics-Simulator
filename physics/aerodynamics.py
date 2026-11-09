@@ -1,101 +1,37 @@
-"""
-Modelos aerodinámicos para el Cessna 172S
-"""
-import numpy as np
+import math
 from data.cessna_172s import Cessna172S
 
-class Aerodynamics:
-    """Cálculos aerodinámicos basados en física real"""
+def compute_aerodynamic_forces(velocity_kts, altitude_ft, weight_lbs, power_percent):
+    """Calcula las 4 fuerzas fundamentales y coeficientes"""
+    ac = Cessna172S(weight_lbs, altitude_ft)
     
-    @staticmethod
-    def air_density(altitude_ft, temperature_c=None):
-        """Calcula la densidad del aire usando la atmósfera estándar ISA"""
-        R = 287.05
-        g = 9.81
-        P0 = 101325
-        T0 = 288.15
-        L = 0.0065
-        
-        altitude_m = altitude_ft * Cessna172S.FT_TO_M
-        
-        if temperature_c is None:
-            T = T0 - L * altitude_m
-        else:
-            T = temperature_c + 273.15
-        
-        P = P0 * (1 - L * altitude_m / T0) ** (g / (R * L))
-        rho = P / (R * T)
-        
-        return rho
+    # Estimación del CL requerido para vuelo nivelado
+    v_fps = velocity_kts * 1.68781
+    rho = ac.get_air_density()
+    q = 0.5 * rho * (v_fps ** 2)
     
-    @staticmethod
-    def calculate_lift(velocity_kts, altitude_ft, cl, wing_area_sqft=None):
-        """Calcula la fuerza de sustentación: L = ½ρv²SCl"""
-        if wing_area_sqft is None:
-            wing_area_sqft = Cessna172S.WING_AREA_SQFT
-        
-        velocity_ms = velocity_kts * Cessna172S.KTS_TO_MS
-        wing_area_m2 = wing_area_sqft * (Cessna172S.FT_TO_M ** 2)
-        rho = Aerodynamics.air_density(altitude_ft)
-        
-        lift = 0.5 * rho * velocity_ms**2 * wing_area_m2 * cl
-        return lift
+    # CL requerido para mantener el peso (L = W)
+    cl_required = weight_lbs / (q * ac.WING_AREA_FT2)
     
-    @staticmethod
-    def calculate_drag(velocity_kts, altitude_ft, cl, wing_area_sqft=None, aspect_ratio=None):
-        """Calcula la fuerza de arrastre total"""
-        if wing_area_sqft is None:
-            wing_area_sqft = Cessna172S.WING_AREA_SQFT
-        if aspect_ratio is None:
-            aspect_ratio = (Cessna172S.WING_SPAN_FT**2) / wing_area_sqft
-        
-        velocity_ms = velocity_kts * Cessna172S.KTS_TO_MS
-        wing_area_m2 = wing_area_sqft * (Cessna172S.FT_TO_M ** 2)
-        rho = Aerodynamics.air_density(altitude_ft)
-        
-        cd_induced = (cl**2) / (np.pi * aspect_ratio * Cessna172S.OSWALD_EFFICIENCY)
-        cd_total = Cessna172S.CD0 + cd_induced
-        
-        drag = 0.5 * rho * velocity_ms**2 * wing_area_m2 * cd_total
-        return drag
+    # Fuerzas
+    lift = ac.compute_lift(velocity_kts, cl_required)
+    drag = ac.compute_drag(velocity_kts, cl_required)
+    thrust = ac.compute_thrust(power_percent)
     
-    @staticmethod
-    def calculate_thrust(power_hp, velocity_kts, efficiency=0.85):
-        """Calcula el empuje disponible: T = (P · η) / v"""
-        power_watts = power_hp * Cessna172S.HP_TO_WATTS
-        velocity_ms = velocity_kts * Cessna172S.KTS_TO_MS
-        
-        if velocity_ms < 1:
-            velocity_ms = 1
-        
-        thrust = (power_watts * efficiency) / velocity_ms
-        return thrust
+    # Evitar división por cero
+    stall_speed = math.sqrt((2 * weight_lbs) / (rho * ac.WING_AREA_FT2 * ac.CL_MAX)) / 1.68781
     
-    @staticmethod
-    def calculate_cl_required(weight_lbs, velocity_kts, altitude_ft, wing_area_sqft=None):
-        """Calcula el CL requerido para vuelo nivelado"""
-        if wing_area_sqft is None:
-            wing_area_sqft = Cessna172S.WING_AREA_SQFT
-        
-        weight_n = weight_lbs * Cessna172S.LBS_TO_KG * 9.81
-        velocity_ms = velocity_kts * Cessna172S.KTS_TO_MS
-        wing_area_m2 = wing_area_sqft * (Cessna172S.FT_TO_M ** 2)
-        rho = Aerodynamics.air_density(altitude_ft)
-        
-        cl_required = weight_n / (0.5 * rho * velocity_ms**2 * wing_area_m2)
-        return cl_required
-    
-    @staticmethod
-    def calculate_stall_speed(weight_lbs, cl_max, altitude_ft=0, wing_area_sqft=None):
-        """Calcula la velocidad de pérdida"""
-        if wing_area_sqft is None:
-            wing_area_sqft = Cessna172S.WING_AREA_SQFT
-        
-        weight_n = weight_lbs * Cessna172S.LBS_TO_KG * 9.81
-        wing_area_m2 = wing_area_sqft * (Cessna172S.FT_TO_M ** 2)
-        rho = Aerodynamics.air_density(altitude_ft)
-        
-        stall_speed_ms = np.sqrt((2 * weight_n) / (rho * wing_area_m2 * cl_max))
-        stall_speed_kts = stall_speed_ms / Cessna172S.KTS_TO_MS
-        
-        return stall_speed_ms, stall_speed_kts
+    return {
+        'lift_lbs': lift,
+        'weight_lbs_force': weight_lbs,
+        'thrust_lbs': thrust,
+        'drag_lbs': drag,
+        'cl': cl_required,
+        'cl_required': cl_required,
+        'stall_speed_kts': stall_speed,
+        'lift_to_weight': lift / weight_lbs if weight_lbs > 0 else 0,
+        'thrust_to_drag': thrust / drag if drag > 0 else 0,
+        'velocity_kts': velocity_kts,
+        'altitude_ft': altitude_ft,
+        'power_percent': power_percent
+    }
