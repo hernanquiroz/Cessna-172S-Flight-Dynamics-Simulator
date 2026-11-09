@@ -11,6 +11,7 @@ class Dashboard:
         R = 1.0 
         
         def value_to_angle(val):
+            # Escala de 0 a 200 KIAS mapeada a 270 grados (de 225° a -45°)
             return 225 - (val / 200) * 270
 
         def draw_arc(start_val, end_val, color, width=10):
@@ -22,12 +23,29 @@ class Dashboard:
             y = [R * math.sin(a) for a in angles]
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
+        # Arcos de colores según POH
         draw_arc(0, 200, 'rgba(200,200,200,0.3)', 14) 
         draw_arc(40, 85, 'white', 10)                  
         draw_arc(48, 129, 'green', 10)                 
         draw_arc(129, 163, 'yellow', 10)               
         draw_arc(163, 163, 'red', 10)                  
 
+        # ========== NUMERACIÓN DEL VELOCÍMETRO ==========
+        ticks = [0, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+        for t in ticks:
+            ang = value_to_angle(t)
+            rad = math.radians(ang)
+            
+            # Línea de la marca (tick)
+            x0, y0 = 0.88 * math.cos(rad), 0.88 * math.sin(rad)
+            x1, y1 = 1.0 * math.cos(rad), 1.0 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines', line=dict(color='black', width=2), showlegend=False))
+            
+            # Texto del número
+            xt, yt = 1.15 * math.cos(rad), 1.15 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[xt], y=[yt], mode='text', text=[str(t)], textfont=dict(size=12, color='black'), showlegend=False))
+
+        # Aguja
         angle = value_to_angle(airspeed_kts)
         needle_len = 0.85
         nx = [0, needle_len * math.cos(math.radians(angle))]
@@ -37,8 +55,8 @@ class Dashboard:
 
         fig.update_layout(
             title=f"🛩️ Velocímetro<br>{airspeed_kts:.0f} KIAS",
-            xaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
-            yaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
+            xaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False),
             height=280, margin=dict(l=10, r=10, t=50, b=10),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         )
@@ -53,6 +71,21 @@ class Dashboard:
         cy = [R * math.sin(t) for t in theta]
         fig.add_trace(go.Scatter(x=cx, y=cy, mode='lines', line=dict(color='lightgray', width=3), showlegend=False))
 
+        # ========== NUMERACIÓN DEL ALTÍMETRO (0 A 9) ==========
+        for i in range(10):
+            ang = i * 36 # 360 grados / 10 números = 36 grados por número
+            rad = math.radians(90 - ang) # 0 está en la parte superior (90 grados en matemáticas)
+            
+            # Tick
+            x0, y0 = 0.85 * math.cos(rad), 0.85 * math.sin(rad)
+            x1, y1 = 1.0 * math.cos(rad), 1.0 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines', line=dict(color='black', width=2), showlegend=False))
+            
+            # Número (representa miles de pies)
+            xt, yt = 1.15 * math.cos(rad), 1.15 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[xt], y=[yt], mode='text', text=[str(i)], textfont=dict(size=14, color='black'), showlegend=False))
+
+        # Cálculo de las 3 agujas
         angle_100 = (altitude_ft % 1000) / 1000 * 360
         angle_1k = (altitude_ft % 10000) / 10000 * 360
         angle_10k = (altitude_ft % 100000) / 100000 * 360
@@ -63,16 +96,16 @@ class Dashboard:
             ny = [0, length * math.sin(rad)]
             fig.add_trace(go.Scatter(x=nx, y=ny, mode='lines', line=dict(color=color, width=width), showlegend=False))
 
-        draw_needle(angle_10k, 0.5, 4, 'orange')
-        draw_needle(angle_1k, 0.75, 4, 'green')
-        draw_needle(angle_100, 0.9, 3, 'black')
+        draw_needle(angle_10k, 0.5, 4, 'orange')   # 10,000 pies
+        draw_needle(angle_1k, 0.75, 4, 'green')    # 1,000 pies
+        draw_needle(angle_100, 0.9, 3, 'black')    # 100 pies
 
         fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, color='black'), showlegend=False))
 
         fig.update_layout(
             title=f"⛰️ Altímetro<br>{altitude_ft:.0f} ft",
-            xaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
-            yaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
+            xaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False),
             height=280, margin=dict(l=10, r=10, t=50, b=10),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         )
@@ -153,6 +186,22 @@ class Dashboard:
         y = [R * math.sin(a) for a in angles]
         fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color='green', width=12), showlegend=False))
 
+        # ========== NUMERACIÓN DE POTENCIA ==========
+        ticks = [0, 25, 50, 75, 100]
+        for t in ticks:
+            ang = value_to_angle(t)
+            rad = math.radians(ang)
+            
+            # Tick
+            x0, y0 = 0.85 * math.cos(rad), 0.85 * math.sin(rad)
+            x1, y1 = 1.0 * math.cos(rad), 1.0 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode='lines', line=dict(color='black', width=2), showlegend=False))
+            
+            # Número
+            xt, yt = 1.15 * math.cos(rad), 1.15 * math.sin(rad)
+            fig.add_trace(go.Scatter(x=[xt], y=[yt], mode='text', text=[f'{t}%'], textfont=dict(size=12, color='black'), showlegend=False))
+
+        # Aguja
         angle = value_to_angle(power_percent)
         needle_len = 0.85
         nx = [0, needle_len * math.cos(math.radians(angle))]
@@ -162,8 +211,8 @@ class Dashboard:
 
         fig.update_layout(
             title=f"🔧 Potencia<br>{power_percent:.0f}% ({rpm} RPM)",
-            xaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
-            yaxis=dict(range=[-1.2, 1.2], showgrid=False, zeroline=False, showticklabels=False),
+            xaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False, scaleanchor="y", scaleratio=1),
+            yaxis=dict(range=[-1.4, 1.4], showgrid=False, zeroline=False, showticklabels=False),
             height=280, margin=dict(l=10, r=10, t=60, b=10),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         )
