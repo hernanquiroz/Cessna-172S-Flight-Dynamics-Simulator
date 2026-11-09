@@ -1,19 +1,14 @@
-# 🛩️ Cessna 172S Flight Dynamics Simulator
+# ✈️ Simulador de Dinámica de Vuelo - Cessna 172S
 
-Simulador de dinámica de vuelo basado en datos reales del **Pilot's Operating Handbook (POH)** del Cessna 172S Skyhawk.
+Este proyecto implementa un **simulador interactivo de dinámica de vuelo** para el avión Cessna 172S, con un tablero de instrumentos tipo cabina y gráficas de rendimiento aerodinámico.
 
-## 🎯 Características
+## 🚀 Características
+- **Instrumentos reales**: Velocímetro, altímetro, horizonte artificial e indicador de potencia con agujas funcionales.
+- **Modelo físico**: Cálculo de sustentación, peso, empuje y arrastre basado en coeficientes aerodinámicos reales (CD0=0.027, e=0.88).
+- **Gráficas de rendimiento**: Polar de arrastre y curva de potencia requerida vs disponible.
+- **Controles interactivos**: Sliders para velocidad, altitud, peso y potencia.
 
-- ✅ **Modelo físico real**: Ecuaciones de sustentación, arrastre, empuje y peso
-- ✅ **Datos del POH**: Especificaciones reales del Cessna 172S (motor Lycoming IO-360-L2A, 180 BHP)
-- ✅ **Tablero interactivo**: Indicadores tipo cabina (velocímetro, altímetro, horizonte artificial)
-- ✅ **Gráficas en tiempo real**: Visualización de fuerzas y performance con Plotly
-- ✅ **Deploy en Streamlit Cloud**: Listo para GitHub
-
-## 🚀 Instalación Local
-
+## 📦 Instalación local
 ```bash
-git clone https://github.com/TU-USUARIO/cessna-172s-simulator.git
-cd cessna-172s-simulator
 pip install -r requirements.txt
 streamlit run app.py
