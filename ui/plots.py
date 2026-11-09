@@ -1,308 +1,55 @@
-"""
-Gráficas de análisis para el simulador Cessna 172S
-"""
-import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from data.cessna_172s import Cessna172S
-from physics.aerodynamics import Aerodynamics
+import numpy as np
 
+def plot_drag_polar(cl_max=1.6, cd0=0.027, e=0.88, ar=7.32):
+    """Genera la gráfica de la polar de arrastre (CL vs CD)"""
+    cl = np.linspace(-0.2, cl_max, 100)
+    cd = cd0 + (cl**2) / (np.pi * e * ar)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=cd, y=cl, mode='lines', name='Polar de Arrastre', line=dict(color='blue', width=3)))
+    fig.update_layout(
+        title="Polar de Arrastre (CL vs CD)",
+        xaxis_title="Coeficiente de Arrastre (CD)",
+        yaxis_title="Coeficiente de Sustentación (CL)",
+        height=350,
+        margin=dict(l=20, r=20, t=50, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(gridcolor='lightgray'),
+        yaxis=dict(gridcolor='lightgray')
+    )
+    return fig
 
-class FlightPlots:
-    """Gráficas de análisis de vuelo"""
+def plot_power_required_vs_available(weight_lbs, altitude_ft, max_power_hp=180, prop_eff=0.8):
+    """Gráfica de potencia requerida vs potencia disponible"""
+    from data.cessna_172s import Cessna172S
+    ac = Cessna172S(weight_lbs, altitude_ft)
     
-    @staticmethod
-    def plot_forces_vs_velocity(weight_lbs=2550, altitude_ft=0, 
-                                power_percent=75, flaps_deg=0):
-        """Gráfica las 4 fuerzas vs velocidad"""
-        velocities = np.linspace(30, 160, 100)
-        lift_forces = []
-        drag_forces = []
-        thrust_forces = []
+    v_kts = np.linspace(40, 160, 100)
+    p_req = []
+    for v in v_kts:
+        # Potencia requerida = Drag * Velocity
+        cl = weight_lbs / (0.5 * ac.get_air_density() * (v*1.68781)**2 * ac.WING_AREA_FT2)
+        drag = ac.compute_drag(v, cl)
+        p_req.append((drag * v * 1.68781) / 550)  # HP
         
-        aero = Aerodynamics()
-        
-        for v in velocities:
-            cl_req = aero.calculate_cl_required(weight_lbs, v, altitude_ft)
-            cl_max = Cessna172S.CL_MAX_FLAPS_DOWN if flaps_deg > 0 else Cessna172S.CL_MAX_FLAPS_UP
-            cl = min(cl_req, cl_max)
-            
-            lift = aero.calculate_lift(v, altitude_ft, cl) / (Cessna172S.LBS_TO_KG * 9.81)
-            drag = aero.calculate_drag(v, altitude_ft, cl) / (Cessna172S.LBS_TO_KG * 9.81)
-            thrust = aero.calculate_thrust(
-                (power_percent/100) * Cessna172S.MAX_POWER_BHP, v
-            ) / (Cessna172S.LBS_TO_KG * 9.81)
-            
-            lift_forces.append(lift)
-            drag_forces.append(drag)
-            thrust_forces.append(thrust)
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=lift_forces,
-            name='Sustentación (Lift)',
-            line=dict(color='green', width=3)
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=drag_forces,
-            name='Arrastre (Drag)',
-            line=dict(color='orange', width=3)
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=thrust_forces,
-            name='Empuje (Thrust)',
-            line=dict(color='blue', width=3)
-        ))
-        
-        fig.add_hline(y=weight_lbs, line_dash="dash", line_color="red",
-                     annotation_text=f"Peso = {weight_lbs} lbs")
-        
-        fig.update_layout(
-            title="📈 Fuerzas vs Velocidad",
-            xaxis_title="Velocidad (KIAS)",
-            yaxis_title="Fuerza (lbs)",
-            height=400,
-            hovermode='x unified',
-            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-        )
-        
-        return fig
+    p_avail = [max_power_hp * prop_eff] * len(v_kts)
     
-    @staticmethod
-    def plot_power_required_vs_available(weight_lbs=2550, altitude_ft=0):
-        """Gráfica de potencia requerida vs disponible"""
-        velocities = np.linspace(40, 150, 100)
-        power_required = []
-        power_available_75 = []
-        power_available_100 = []
-        
-        aero = Aerodynamics()
-        
-        for v in velocities:
-            cl_req = aero.calculate_cl_required(weight_lbs, v, altitude_ft)
-            cl_max = Cessna172S.CL_MAX_FLAPS_UP
-            cl = min(cl_req, cl_max)
-            
-            drag = aero.calculate_drag(v, altitude_ft, cl)
-            
-            v_ms = v * Cessna172S.KTS_TO_MS
-            p_req_watts = drag * v_ms
-            p_req_hp = p_req_watts / Cessna172S.HP_TO_WATTS
-            
-            p_avail_100 = Cessna172S.MAX_POWER_BHP * 0.85
-            p_avail_75 = p_avail_100 * 0.75
-            
-            power_required.append(p_req_hp)
-            power_available_75.append(p_avail_75)
-            power_available_100.append(p_avail_100)
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=power_required,
-            name='Potencia Requerida',
-            line=dict(color='red', width=3)
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=power_available_100,
-            name='Potencia Disponible (100%)',
-            line=dict(color='green', width=2, dash='dash')
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=power_available_75,
-            name='Potencia Disponible (75%)',
-            line=dict(color='blue', width=2, dash='dot')
-        ))
-        
-        fig.update_layout(
-            title="⚡ Potencia Requerida vs Disponible",
-            xaxis_title="Velocidad (KIAS)",
-            yaxis_title="Potencia (HP)",
-            height=400,
-            hovermode='x unified'
-        )
-        
-        return fig
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=v_kts, y=p_req, mode='lines', name='Potencia Requerida', line=dict(color='red', width=3)))
+    fig.add_trace(go.Scatter(x=v_kts, y=p_avail, mode='lines', name='Potencia Disponible', line=dict(color='green', width=3, dash='dash')))
     
-    @staticmethod
-    def plot_vn_diagram(weight_lbs=2550):
-        """Diagrama V-n (Velocity-Load Factor)"""
-        vs1 = Cessna172S.V_S1
-        va = Cessna172S.V_A_2550
-        vno = Cessna172S.V_NO
-        vne = Cessna172S.V_NE
-        
-        n_pos_max = 3.8
-        n_neg_max = -1.52
-        
-        velocities = np.linspace(0, vne, 100)
-        n_positive = []
-        n_negative = []
-        
-        for v in velocities:
-            if v <= va:
-                n_pos = n_pos_max
-                n_neg = n_neg_max
-            else:
-                n_pos = n_pos_max * (va / v) ** 2
-                n_neg = n_neg_max * (va / v) ** 2
-            
-            n_positive.append(n_pos)
-            n_negative.append(n_neg)
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=n_positive,
-            name='Límite Positivo (+)',
-            line=dict(color='green', width=2),
-            fill='tonexty',
-            fillcolor='rgba(0, 255, 0, 0.1)'
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=n_negative,
-            name='Límite Negativo (-)',
-            line=dict(color='red', width=2),
-            fill='tonexty',
-            fillcolor='rgba(255, 0, 0, 0.1)'
-        ))
-        
-        fig.add_vline(x=vs1, line_dash="dash", line_color="gray",
-                     annotation_text=f"Vs1={vs1}")
-        fig.add_vline(x=va, line_dash="dash", line_color="blue",
-                     annotation_text=f"Va={va}")
-        fig.add_vline(x=vno, line_dash="dash", line_color="orange",
-                     annotation_text=f"Vno={vno}")
-        fig.add_vline(x=vne, line_dash="dash", line_color="red",
-                     annotation_text=f"Vne={vne}")
-        
-        fig.update_layout(
-            title=f"📊 Diagrama V-n (Peso: {weight_lbs} lbs)",
-            xaxis_title="Velocidad Indicada (KIAS)",
-            yaxis_title="Factor de Carga (g)",
-            height=450,
-            yaxis=dict(range=[-3, 5])
-        )
-        
-        return fig
-    
-    @staticmethod
-    def plot_lift_coefficient_vs_velocity(weight_lbs=2550, altitude_ft=0):
-        """Gráfica CL requerido vs velocidad"""
-        velocities = np.linspace(30, 160, 100)
-        cl_required = []
-        
-        aero = Aerodynamics()
-        
-        for v in velocities:
-            cl = aero.calculate_cl_required(weight_lbs, v, altitude_ft)
-            cl_required.append(cl)
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=velocities, y=cl_required,
-            mode='lines',
-            name='CL Requerido',
-            line=dict(color='purple', width=3)
-        ))
-        
-        fig.add_hline(y=Cessna172S.CL_MAX_FLAPS_UP, 
-                     line_dash="dash", line_color="red",
-                     annotation_text=f"CLmax (flaps up) = {Cessna172S.CL_MAX_FLAPS_UP}")
-        
-        fig.add_hline(y=Cessna172S.CL_MAX_FLAPS_DOWN, 
-                     line_dash="dot", line_color="orange",
-                     annotation_text=f"CLmax (flaps down) = {Cessna172S.CL_MAX_FLAPS_DOWN}")
-        
-        fig.update_layout(
-            title="📐 Coeficiente de Sustentación (CL) vs Velocidad",
-            xaxis_title="Velocidad (KIAS)",
-            yaxis_title="CL Requerido",
-            height=400,
-            hovermode='x unified'
-        )
-        
-        return fig
-    
-    @staticmethod
-    def plot_stall_speed_vs_weight(altitude_ft=0, flaps_down=False):
-        """Gráfica velocidad de pérdida vs peso"""
-        weights = np.linspace(1800, 2550, 50)
-        stall_speeds = []
-        
-        aero = Aerodynamics()
-        cl_max = Cessna172S.CL_MAX_FLAPS_DOWN if flaps_down else Cessna172S.CL_MAX_FLAPS_UP
-        
-        for w in weights:
-            _, vs_kts = aero.calculate_stall_speed(w, cl_max, altitude_ft)
-            stall_speeds.append(vs_kts)
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=weights, y=stall_speeds,
-            mode='lines+markers',
-            name='Velocidad de Pérdida',
-            line=dict(color='red', width=3),
-            marker=dict(size=6)
-        ))
-        
-        fig.update_layout(
-            title=f"🚨 Velocidad de Pérdida vs Peso ({'Flaps Down' if flaps_down else 'Flaps Up'})",
-            xaxis_title="Peso (lbs)",
-            yaxis_title="Velocidad de Pérdida (KIAS)",
-            height=400
-        )
-        
-        return fig
-    
-    @staticmethod
-    def plot_density_altitude_effect():
-        """Muestra cómo la altitud afecta la densidad del aire"""
-        altitudes = np.linspace(0, 14000, 100)
-        densities = []
-        density_ratios = []
-        
-        aero = Aerodynamics()
-        
-        for alt in altitudes:
-            rho = aero.air_density(alt)
-            densities.append(rho)
-            density_ratios.append(rho / 1.225)
-        
-        fig = make_subplots(rows=1, cols=2,
-                           subplot_titles=('Densidad del Aire', 'Ratio de Densidad (σ)'))
-        
-        fig.add_trace(go.Scatter(
-            x=altitudes, y=densities,
-            mode='lines',
-            name='Densidad',
-            line=dict(color='blue', width=2)
-        ), row=1, col=1)
-        
-        fig.add_trace(go.Scatter(
-            x=altitudes, y=density_ratios,
-            mode='lines',
-            name='σ',
-            line=dict(color='green', width=2)
-        ), row=1, col=2)
-        
-        fig.update_layout(
-            title="🌤️ Efecto de la Altitud en la Densidad del Aire",
-            height=350,
-            showlegend=False
-        )
-        
-        fig.update_xaxes(title_text="Altitud (ft)", row=1, col=1)
-        fig.update_xaxes(title_text="Altitud (ft)", row=1, col=2)
-        fig.update_yaxes(title_text="ρ (kg/m³)", row=1, col=1)
-        fig.update_yaxes(title_text="σ (adimensional)", row=1, col=2)
-        
-        return fig
+    fig.update_layout(
+        title="Potencia Requerida vs Disponible",
+        xaxis_title="Velocidad (KTAS)",
+        yaxis_title="Potencia (HP)",
+        height=350,
+        margin=dict(l=20, r=20, t=50, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(gridcolor='lightgray'),
+        yaxis=dict(gridcolor='lightgray'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    return fig
