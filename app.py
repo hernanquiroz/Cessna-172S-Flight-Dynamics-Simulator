@@ -1,35 +1,47 @@
 import streamlit as st
+import pandas as pd
 from data.cessna_172s import Cessna172S
-from physics.aerodynamics import compute_aerodynamic_forces
-from physics.flight_dynamics import compute_pitch_roll
+from physics.flight_dynamics import FlightDynamics
 from ui.dashboard import Dashboard
-from ui.plots import plot_drag_polar, plot_power_required_vs_available
 
-# Configuración de página
-st.set_page_config(page_title="Cessna 172S Simulator", page_icon="✈️", layout="wide")
-
-# Inicializar el modelo de datos si no existe
-if 'ac_model' not in st.session_state:
-    st.session_state.ac_model = Cessna172S()
+st.set_page_config(page_title="Cessna 172S - POH Simulator", page_icon="✈️", layout="wide")
 
 st.title("✈️ Simulador de Dinámica de Vuelo - Cessna 172S")
-st.markdown("Modelo interactivo basado en datos reales de POH y coeficientes aerodinámicos de vuelo.")
+st.markdown("Modelo basado en el **Pilot's Operating Handbook (POH)** real del Cessna 172S. Modifica los controles para ver cómo interactúan las 4 fuerzas fundamentales.")
 
-# Barra lateral de controles
+flight_dynamics = FlightDynamics()
+
+# ========== SIDEBAR: CONTROLES ==========
 st.sidebar.header("🎛️ Controles de Vuelo")
 velocity_kts = st.sidebar.slider("Velocidad (KIAS)", min_value=30, max_value=180, value=90, step=1)
-altitude_ft = st.sidebar.slider("Altitud (ft)", min_value=0, max_value=14000, value=0, step=100)
-weight_lbs = st.sidebar.slider("Peso (lbs)", min_value=1680, max_value=2550, value=2300, step=10)
-power_percent = st.sidebar.slider("Potencia del Motor (%)", min_value=0, max_value=100, value=75, step=1)
+altitude_ft = st.sidebar.slider("Altitud (ft)", min_value=0, max_value=14000, value=5000, step=100)
+weight_lbs = st.sidebar.slider("Peso (lbs)", min_value=1663, max_value=2550, value=2300, step=10)
+power_percent = st.sidebar.slider("Potencia del Motor (%)", min_value=0, max_value=100, value=65, step=1)
 
-# Calcular fuerzas
-forces_data = compute_aerodynamic_forces(velocity_kts, altitude_ft, weight_lbs, power_percent)
+# ========== CÁLCULO DE FUERZAS ==========
+forces_data = flight_dynamics.calculate_forces(
+    velocity_kts=velocity_kts,
+    altitude_ft=altitude_ft,
+    power_percent=power_percent,
+    weight_lbs=weight_lbs
+)
 
-# Calcular actitud (Pitch y Roll)
-pitch_deg, roll_deg = compute_pitch_roll(velocity_kts, power_percent, forces_data['lift_to_weight'])
+pitch_deg, roll_deg = flight_dynamics.calculate_attitude(forces_data['lift_to_weight'], velocity_kts)
 
-# Renderizar el tablero de instrumentos
-status, status_color, metrics = Dashboard.create_flight_status_panel(forces_data)
+# ========== PANEL DE ESTADO ==========
+lift_weight_ratio = forces_data['lift_to_weight']
+if forces_data['velocity_kts'] < forces_data['stall_speed_kts']:
+    status = "🚨 ¡PÉRDIDA! (STALL)"
+    status_color = "red"
+elif lift_weight_ratio > 1.02:
+    status = "📈 Ascendiendo"
+    status_color = "green"
+elif lift_weight_ratio < 0.98:
+    status = "📉 Descendiendo"
+    status_color = "orange"
+else:
+    status = "✈️ Vuelo Nivelado"
+    status_color = "blue"
 
 st.markdown(f"""
 <div style='background-color: {status_color}; padding: 15px; border-radius: 10px; 
@@ -38,33 +50,45 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Primera fila de instrumentos
+# ========== TABLERO DE INSTRUMENTOS ==========
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.plotly_chart(Dashboard.create_airspeed_indicator(velocity_kts, forces_data['stall_speed_kts']), width="stretch")
+    st.plotly_chart(Dashboard.create_airspeed_indicator(velocity_kts), use_container_width=True)
 with col2:
-    st.plotly_chart(Dashboard.create_altitude_indicator(altitude_ft), width="stretch")
+    st.plotly_chart(Dashboard.create_altitude_indicator(altitude_ft), use_container_width=True)
 with col3:
-    st.plotly_chart(Dashboard.create_power_indicator(power_percent), width="stretch")
+    st.plotly_chart(Dashboard.create_power_indicator(power_percent), use_container_width=True)
 
-# Segunda fila: Horizonte y Fuerzas
 col4, col5 = st.columns(2)
 with col4:
-    st.plotly_chart(Dashboard.create_attitude_indicator(pitch_deg, roll_deg), width="stretch")
+    st.plotly_chart(Dashboard.create_attitude_indicator(pitch_deg, roll_deg), use_container_width=True)
 with col5:
-    st.plotly_chart(Dashboard.create_forces_panel(forces_data), width="stretch")
+    st.plotly_chart(Dashboard.create_forces_panel(forces_data), use_container_width=True)
 
-# Tercera fila: Gráficas de rendimiento
-st.markdown("### 📊 Análisis de Rendimiento")
-col6, col7 = st.columns(2)
-with col6:
-    st.plotly_chart(plot_drag_polar(), width="stretch")
-with col7:
-    st.plotly_chart(plot_power_required_vs_available(weight_lbs, altitude_ft), width="stretch")
-
-# Métricas clave
-st.markdown("### 📈 Métricas de Vuelo")
+# ========== MÉTRICAS ==========
+st.markdown("### 📊 Métricas de Vuelo (Basadas en POH)")
 metric_cols = st.columns(6)
+metrics = {
+    'Lift/Weight': f"{forces_data['lift_to_weight']:.2f}",
+    'Thrust/Drag': f"{forces_data['thrust_to_drag']:.2f}",
+    'CL Requerido': f"{forces_data['cl']:.3f}",
+    'Velocidad Stall': f"{forces_data['stall_speed_kts']:.1f} KIAS",
+    'Sustentación': f"{forces_data['lift_lbs']:.0f} lbs",
+    'Arrastre': f"{forces_data['drag_lbs']:.0f} lbs"
+}
+
 for i, (key, value) in enumerate(metrics.items()):
     with metric_cols[i]:
         st.metric(label=key, value=value)
+
+# ========== DATOS TÉCNICOS DEL POH ==========
+with st.expander("📖 Ver Especificaciones Técnicas del POH"):
+    st.markdown(f"""
+    *   **Motor:** {Cessna172S.ENGINE_MODEL} ({Cessna172S.MAX_POWER_BHP} BHP)
+    *   **Peso Máximo de Despegue:** {Cessna172S.MAX_TAKEOFF_WEIGHT_LBS} lbs
+    *   **Velocidad de Pérdida (Vs0):** {Cessna172S.V_STALL_FLAPS} KIAS
+    *   **Velocidad de Pérdida Limpia (Vs1):** {Cessna172S.V_STALL_CLEAN} KIAS
+    *   **Velocidad Máxima de Crucero (Vno):** {Cessna172S.V_NO} KIAS
+    *   **Velocidad Nunca Exceder (Vne):** {Cessna172S.V_NE} KIAS
+    *   **Techo de Servicio:** {Cessna172S.SERVICE_CEILING_FT} ft
+    """)
